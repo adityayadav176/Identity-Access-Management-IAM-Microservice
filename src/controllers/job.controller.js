@@ -214,7 +214,11 @@ const permanentDeleteJob = asyncHandler(async (req, res) => {
     .json(
         new ApiResponse(200,{}, "Job Deleted Successfully")
     )
-})
+});
+
+// const getJobById = asyncHandler(async (req, res) => {
+
+// })
 
 export {
     createJob,
