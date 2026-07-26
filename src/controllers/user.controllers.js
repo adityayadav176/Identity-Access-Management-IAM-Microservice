@@ -38,43 +38,67 @@ const client = new OAuth2Client(
 )
 
 const registerUser = asyncHandler(async (req, res) => {
-    const { name, email, password, phoneNo } = req.body || {}
+    console.log("========== REGISTER USER ==========");
+
+    const { name, email, password, phoneNo } = req.body || {};
+    console.log("Request Body:", { name, email, phoneNo });
 
     if ([name, email, password, phoneNo].some(field => !field?.toString().trim())) {
+        console.log("❌ Validation Failed: Missing Required Fields");
         throw new ApiError(400, "All Filed Are Required");
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    console.log("Normalized Email:", normalizedEmail);
 
     const existedUser = await User.findOne({
         $or: [{ phoneNo }, { email: normalizedEmail }]
     });
 
+    console.log("Existing User:", existedUser);
+
     if (existedUser) {
+        console.log("❌ User Already Exists");
         throw new ApiError(400, "User Already Exists");
     }
 
-    const avatarLocalPath = req.files?.avatar?.[0]?.path
-    const coverImageLocalPath = req.files?.coverImage?.[0]?.path
+    console.log("Files Received:", req.files);
+
+    const avatarLocalPath = req.files?.avatar?.[0]?.path;
+    const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
+
+    console.log("Avatar Path:", avatarLocalPath);
+    console.log("Cover Image Path:", coverImageLocalPath);
 
     if (!avatarLocalPath) {
+        console.log("❌ Avatar Missing");
         throw new ApiError(400, "Avatar File Required");
     }
 
     if (!coverImageLocalPath) {
+        console.log("❌ Cover Image Missing");
         throw new ApiError(400, "CoverImage Required");
     }
 
+    console.log("Uploading Avatar...");
     const uploadAvatar = await uploadOnCloudinary(avatarLocalPath);
+    console.log("Avatar Upload Response:", uploadAvatar);
+
     if (!uploadAvatar?.secure_url || !uploadAvatar?.public_id) {
+        console.log("❌ Avatar Upload Failed");
         throw new ApiError(500, "Failed To Upload Avatar");
     }
 
+    console.log("Uploading Cover Image...");
     const uploadCoverImage = await uploadOnCloudinary(coverImageLocalPath);
+    console.log("Cover Upload Response:", uploadCoverImage);
 
     if (!uploadCoverImage?.secure_url || !uploadCoverImage?.public_id) {
+        console.log("❌ Cover Image Upload Failed");
         throw new ApiError(500, "Failed To Upload CoverImage");
     }
+
+    console.log("Creating User...");
 
     const user = await User.create({
         name,
@@ -82,47 +106,61 @@ const registerUser = asyncHandler(async (req, res) => {
         phoneNo,
         password,
         avatar: {
-            url: uploadAvatar?.secure_url,
-            public_id: uploadAvatar?.public_id
+            url: uploadAvatar.secure_url,
+            public_id: uploadAvatar.public_id
         },
         coverImage: {
-            url: uploadCoverImage?.secure_url,
-            public_id: uploadCoverImage?.public_id
+            url: uploadCoverImage.secure_url,
+            public_id: uploadCoverImage.public_id
         }
-    })
+    });
+
+    console.log("Created User:", user);
 
     if (!user) {
+        console.log("❌ User Creation Failed");
         throw new ApiError(500, "Something Went Wrong While Register User");
     }
 
     try {
+        console.log("Sending Welcome Email...");
+
         await transporter.sendMail({
             from: process.env.SENDER_EMAIL,
-            to: email,
+            to: normalizedEmail,
             subject: `Welcome To Our Application ${PROJECT_NAME}`,
             html: `
-            <h1>Hi ${name}</h1>
-            <h2>Your Account Is Successfully Created On ${PROJECT_NAME}</h2>
-        `
+                <h1>Hi ${name}</h1>
+                <h2>Your Account Is Successfully Created On ${PROJECT_NAME}</h2>
+            `
         });
+
+        console.log("✅ Email Sent Successfully");
     } catch (error) {
-        console.error("Email Error:", error);
+        console.error("❌ Email Error:", error);
     }
+
+    console.log("Fetching Created User...");
 
     const createdUser = await User.findById(user._id).select("-password -refreshToken");
 
+    console.log("Created User Response:", createdUser);
+
     if (!createdUser) {
+        console.log("❌ Created User Not Found");
         throw new ApiError(404, "User Not Found!");
     }
 
+    console.log("✅ Registration Successful");
+
     return res.status(201).json(
-        new ApiResponse(201,
-            {
-                user: createdUser,
-            },
-            "Register User Successfully")
-    )
-})
+        new ApiResponse(
+            201,
+            { user: createdUser },
+            "Register User Successfully"
+        )
+    );
+});
 
 const loginUser = asyncHandler(async (req, res) => {
     const { email, phoneNo, password } = req.body;
