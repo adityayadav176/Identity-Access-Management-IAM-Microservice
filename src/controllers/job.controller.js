@@ -147,7 +147,78 @@ const updateJob = asyncHandler(async (req, res) => {
     );
 });
 
+const deleteJob = asyncHandler(async (req, res) => {
+    const { JobId } = req.params;
+
+    if (!JobId || !mongoose.isValidObjectId(JobId)) {
+        throw new ApiError(400, "Invalid Job ID");
+    }
+
+    const recruiterId = req.user?._id;
+
+    if (!recruiterId) {
+        throw new ApiError(401, "Unauthorized Access");
+    }
+
+    const job = await Job.findOne({
+        _id: JobId,
+        recruiterId,
+        isDeleted: false
+    });
+
+    if (!job) {
+        throw new ApiError(
+            404,
+            "Job not found or you are not authorized to delete it."
+        );
+    }
+
+    job.isDeleted = true;
+    job.status = "CLOSED";
+
+    await job.save();
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {},
+            "Job deleted successfully."
+        )
+    );
+});
+
+const permanentDeleteJob = asyncHandler(async (req, res) => {
+    const { JobId } = req.params;
+
+    if(!JobId || !mongoose.isValidObjectId(JobId)) {
+        throw new ApiError(400, "Invalid JoId");
+    }
+
+    const recruiterId = req.user._id;
+
+    if(!recruiterId) {
+        throw new ApiError(401, "You are not authorized to perform this task")
+    }
+
+    const job = await Job.findOneAndDelete({
+        _id: JobId,
+        recruiterId,
+        isDeleted: true
+    })
+
+    if(!job) {
+        throw new ApiError(404, "Job not found or you are not authorized to delete it.")
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200,{}, "Job Deleted Successfully")
+    )
+})
+
 export {
     createJob,
-    updateJob
+    updateJob,
+    permanentDeleteJob,
+    deleteJob
 }
