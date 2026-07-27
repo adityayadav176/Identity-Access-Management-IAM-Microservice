@@ -12,9 +12,9 @@ const transporter = nodemailer.createTransport({
     }
 })
 
-const verifySmtp = () => {
+const verifySmtp = async() => {
     try {
-        transporter.verify();
+        await transporter.verify();
         console.log("Smtp Server Is Running");
     } catch (error) {
         console.log("Smtp Server Failed: ", error.message);

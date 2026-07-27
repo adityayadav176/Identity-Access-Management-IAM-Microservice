@@ -1,4 +1,4 @@
-import { Job, Job } from "../models/job.model.js";
+import { Job } from "../models/job.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -216,13 +216,120 @@ const permanentDeleteJob = asyncHandler(async (req, res) => {
     )
 });
 
-// const getJobById = asyncHandler(async (req, res) => {
+const getJobById = asyncHandler(async (req, res) => {
+    const { JobId } = req.params;
 
-// })
+    if(!JobId || !mongoose.isValidObjectId(JobId)) {
+        throw new ApiError(400, "Invalid JobId");
+    }
+
+    const job = await Job.findOneAndUpdate(
+        {
+            _id: JobId,
+            isDeleted: false
+        },
+        {
+            $inc: {views: 1}
+        },
+        {
+            new: true
+        }
+    );
+
+    if(!job) {
+        throw new ApiError(404, "Job Not Found");
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, job, "Job fetched successfully")
+    )
+})
+
+const getAllJobs = asyncHandler(async (req, res) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    if(page < 1 || limit < 1) {
+        throw new ApiError(400, "Invalid Page Or Limit");
+    }
+
+    const {
+        keyword,
+        category,
+        workSpaceType,
+        employmentType,
+        experienceLevel,
+        location,
+        status
+    } = req.query
+
+    const filter = {
+        isDeleted: false
+    }
+
+    filter.status = status || "OPEN";
+
+    if(keyword) {
+        filter.$text = {
+            $search: keyword
+        }
+    }
+
+    if(category) {
+        filter.category = category;
+    }
+
+    if(workSpaceType) {
+        filter.workSpaceType = workSpaceType;
+    }
+
+    if(employmentType) {
+        filter.employmentType = employmentType;
+    }
+
+    if(experienceLevel) {
+        filter.experienceLevel = experienceLevel;
+    }
+
+    if(location) {
+        filter["location.city"] = {
+            $regex: location,
+            $options: "i"
+        };
+    }
+
+    const jobs = await Job.find(filter)
+    .sort({createdAt: -1})
+    .skip(skip)
+    .limit(limit);
+
+    const totalJobs = await Job.countDocuments(filter);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                jobs,
+                pagination: {
+                    page,
+                    limit,
+                    totalJobs,
+                    hasNextPage: Math.ceil(totalJobs / limit),
+                    hasPrevPage: page > 1
+                }
+            },
+            "Jobs Fetched Successfully"
+        )
+    )
+})
 
 export {
     createJob,
     updateJob,
     permanentDeleteJob,
-    deleteJob
+    deleteJob,
+    getJobById,
+    getAllJobs
 }

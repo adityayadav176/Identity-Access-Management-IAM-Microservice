@@ -1,9 +1,13 @@
 import { Router } from "express";
-import { createJob, updateJob } from "../controllers/job.controller.js";
+import { createJob, deleteJob, getAllJobs, getJobById, permanentDeleteJob, updateJob } from "../controllers/job.controller.js";
 import { verifyUser } from "../middleware/verifyUser.middleware.js";
 const router = Router()
 
 router.post("/",verifyUser, createJob);
-router.patch("/", verifyUser, updateJob);
+router.patch("/:JobId", verifyUser, updateJob);
+router.delete("/:JobId", verifyUser, deleteJob);
+router.delete("/:JobId/parmanent", verifyUser, permanentDeleteJob);
+router.get("/:JobId", verifyUser, getJobById);
+router.get("/", verifyUser, getAllJobs);
 
 export default router
