@@ -325,11 +325,48 @@ const getAllJobs = asyncHandler(async (req, res) => {
     )
 })
 
+const changeJobStatus = asyncHandler(async (req, res) => {
+    const { JobId } = req.params;
+     const { status } = req.body;
+
+    if(!JobId || !mongoose.isValidObjectId(JobId)) {
+        throw new ApiError(400, "Invalid JobId")
+    }
+
+    const allowedStatus = ["DRAFT", "OPEN", "PAUSED", "DRAFT", "EXPIRED"];
+
+    if(!allowedStatus.includes(status)) {
+        throw new ApiError(400, "Invalid Job Status");
+    }
+
+    const job = await Job.findByIdAndUpdate(
+        JobId,
+        {
+            $set: {status}
+        },
+        {
+            new: true,
+            runValidators: true
+        }
+    )
+
+    if(!job) {
+        throw new ApiError(404, "Job Not Found And Updated");
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, job, "Job Updated Successfully")
+    )
+})
+
+
 export {
     createJob,
     updateJob,
     permanentDeleteJob,
     deleteJob,
     getJobById,
-    getAllJobs
+    getAllJobs,
+    changeJobStatus
 }
