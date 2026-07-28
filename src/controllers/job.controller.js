@@ -446,9 +446,95 @@ const getRecruiterJobs = asyncHandler(async (req, res) => {
 
 // })
 
-// const getDeleteJobs = asyncHandler(async (req, res) => {
+const getDeletedJobs = asyncHandler(async (req, res) => {
+    const recruiterId = req.user._id;
 
-// })
+    if (!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
+        throw new ApiError(400, "Invalid Recruiter ID");
+    }
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    if (page < 1 || limit < 1) {
+        throw new ApiError(400, "Invalid Page Or Limit");
+    }
+
+    const {
+        keyword,
+        category,
+        workSpaceType,
+        employmentType,
+        experienceLevel,
+        location,
+        status
+    } = req.query;
+
+    const filter = {
+        recruiterId,
+        isDeleted: true
+    };
+
+    if (status) {
+        filter.status = status;
+    }
+
+    if (keyword) {
+        filter.$text = {
+            $search: keyword
+        };
+    }
+
+    if (category) {
+        filter.category = category;
+    }
+
+    if (workSpaceType) {
+        filter.workSpaceType = workSpaceType;
+    }
+
+    if (employmentType) {
+        filter.employmentType = employmentType;
+    }
+
+    if (experienceLevel) {
+        filter.experienceLevel = experienceLevel;
+    }
+
+    if (location) {
+        filter["location.city"] = {
+            $regex: location,
+            $options: "i"
+        };
+    }
+
+    const jobs = await Job.find(filter)
+        .sort({ deletedAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    const totalJobs = await Job.countDocuments(filter);
+    const totalPages = Math.ceil(totalJobs / limit);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                jobs,
+                pagination: {
+                    page,
+                    limit,
+                    totalJobs,
+                    totalPages,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1
+                }
+            },
+            "Deleted Jobs Fetched Successfully"
+        )
+    );
+});
 
 // const softDeleteJob = asyncHandler(async (req, res) => {
 
