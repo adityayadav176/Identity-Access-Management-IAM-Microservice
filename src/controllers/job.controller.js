@@ -442,9 +442,40 @@ const getRecruiterJobs = asyncHandler(async (req, res) => {
     )  
 })
 
-// const restoreJobs = asyncHandler(async (req, res) => {
+const restoreJob = asyncHandler(async (req, res) => {
+    const { JobId } = req.params;
+    const recruiterId = req.user._id;
 
-// })
+    if (!JobId || !mongoose.isValidObjectId(JobId)) {
+        throw new ApiError(400, "Invalid Job ID");
+    }
+
+    const job = await Job.findOne({
+        _id: JobId,
+        recruiterId,
+        isDeleted: true,
+    });
+
+    if (!job) {
+        throw new ApiError(
+            404,
+            "Deleted job not found or you are not authorized to restore it."
+        );
+    }
+
+    job.isDeleted = false;
+    job.deletedAt = null;
+
+    await job.save();
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            job,
+            "Job restored successfully."
+        )
+    );
+});
 
 const getDeletedJobs = asyncHandler(async (req, res) => {
     const recruiterId = req.user._id;
