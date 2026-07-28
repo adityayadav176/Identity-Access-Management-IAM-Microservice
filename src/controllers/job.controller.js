@@ -316,7 +316,7 @@ const getAllJobs = asyncHandler(async (req, res) => {
                     page,
                     limit,
                     totalJobs,
-                    hasNextPage: Math.ceil(totalJobs / limit),
+                    hasNextPage: page < Math.ceil(totalJobs / limit),
                     hasPrevPage: page > 1
                 }
             },
@@ -360,6 +360,99 @@ const changeJobStatus = asyncHandler(async (req, res) => {
     )
 })
 
+const getRecruiterJobs = asyncHandler(async (req, res) => {
+    const recruiterId = req.user._id;
+
+    if(!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
+        throw new ApiError(400, "Invalid RecruiterID");
+    }
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * 10;
+
+    if(page < 1 || limit < 1) {
+        throw new ApiError(400, "Invalid Page Or Limit");
+    }
+
+    const {keyword, category, workSpaceType, employmentType, experienceLevel, location, status} = req.query;
+
+    const filter = {
+        isDeleted: false,
+        recruiterId
+    }
+
+    filter.status = status || "OPEN"
+
+    if(keyword) {
+        filter.$text = {
+            $search: keyword
+        }
+    }
+
+    if(category) {
+        filter.category = category;
+    }
+
+    if(workSpaceType) {
+        filter.workSpaceType = workSpaceType
+    }
+
+    if(employmentType) {
+        filter.employmentType = employmentType
+    }
+
+    if(experienceLevel) {
+        filter.experienceLevel = experienceLevel
+    }
+
+    if(location) {
+        filter["location.city"] = {
+            $reget: location,
+            $options: "i"
+        }
+    }
+
+    const jobs = await Job.find(filter)
+    .sort({createdAt: -1})
+    .skip(skip)
+    .limit(limit);
+
+    if(!jobs) {
+        throw new ApiError(404, "Job Not Found");
+    }
+
+    const totalJobs = await Job.countDocuments(filter);
+
+    return res.status(200)
+    .json(
+        200,
+        {
+            jobs,
+            pagination: {
+                page,
+                limit,
+                totalJobs,
+                totalPages: Math.ceil(totalJobs / limit),
+                hasNextPage: page < Math.ceil(totalJobs / limit),
+                hasPrevPage: page > 1,
+            }
+        },
+        "Recruiter Jobs Fetched Successfully"
+    )  
+})
+
+// const restoreJobs = asyncHandler(async (req, res) => {
+
+// })
+
+// const getDeleteJobs = asyncHandler(async (req, res) => {
+
+// })
+
+// const softDeleteJob = asyncHandler(async (req, res) => {
+
+// })
 
 export {
     createJob,
