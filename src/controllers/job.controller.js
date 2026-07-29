@@ -572,10 +572,6 @@ const getDeletedJobs = asyncHandler(async (req, res) => {
     );
 });
 
-// const softDeleteJob = asyncHandler(async (req, res) => {
-
-// })
-
 export {
     createJob,
     updateJob,
