@@ -363,139 +363,18 @@ const changeJobStatus = asyncHandler(async (req, res) => {
 const getRecruiterJobs = asyncHandler(async (req, res) => {
     const recruiterId = req.user._id;
 
-    if(!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
-        throw new ApiError(400, "Invalid RecruiterID");
-    }
-
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
-    const skip = (page - 1) * 10;
-
-    if(page < 1 || limit < 1) {
-        throw new ApiError(400, "Invalid Page Or Limit");
-    }
-
-    const {keyword, category, workSpaceType, employmentType, experienceLevel, location, status} = req.query;
-
-    const filter = {
-        isDeleted: false,
-        recruiterId
-    }
-
-    filter.status = status || "OPEN"
-
-    if(keyword) {
-        filter.$text = {
-            $search: keyword
-        }
-    }
-
-    if(category) {
-        filter.category = category;
-    }
-
-    if(workSpaceType) {
-        filter.workSpaceType = workSpaceType
-    }
-
-    if(employmentType) {
-        filter.employmentType = employmentType
-    }
-
-    if(experienceLevel) {
-        filter.experienceLevel = experienceLevel
-    }
-
-    if(location) {
-        filter["location.city"] = {
-            $reget: location,
-            $options: "i"
-        }
-    }
-
-    const jobs = await Job.find(filter)
-    .sort({createdAt: -1})
-    .skip(skip)
-    .limit(limit);
-
-    if(!jobs) {
-        throw new ApiError(404, "Job Not Found");
-    }
-
-    const totalJobs = await Job.countDocuments(filter);
-
-    return res.status(200)
-    .json(
-        200,
-        {
-            jobs,
-            pagination: {
-                page,
-                limit,
-                totalJobs,
-                totalPages: Math.ceil(totalJobs / limit),
-                hasNextPage: page < Math.ceil(totalJobs / limit),
-                hasPrevPage: page > 1,
-            }
-        },
-        "Recruiter Jobs Fetched Successfully"
-    )  
-})
-
-const restoreJob = asyncHandler(async (req, res) => {
-    const { JobId } = req.params;
-    const recruiterId = req.user._id;
-
-    if (!JobId || !mongoose.isValidObjectId(JobId)) {
-        throw new ApiError(400, "Invalid Job ID");
-    }
-
-    const job = await Job.findOneAndUpdate(
-        {
-            _id: JobId,
-            recruiterId,
-            isDeleted: true,
-        },
-        {
-            $set: {
-                isDeleted: false,
-            },
-        },
-        {
-            new: true,
-        }
-    );
-
-    if (!job) {
-        throw new ApiError(
-            404,
-            "Deleted job not found or you are not authorized to restore it."
-        );
-    }
-
-    return res.status(200).json(
-        new ApiResponse(
-            200,
-            job,
-            "Job restored successfully."
-        )
-    );
-});
-
-const getDeletedJobs = asyncHandler(async (req, res) => {
-    const recruiterId = req.user._id;
-
     if (!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
         throw new ApiError(400, "Invalid Recruiter ID");
     }
 
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
 
     if (page < 1 || limit < 1) {
         throw new ApiError(400, "Invalid Page Or Limit");
     }
+
+    const skip = (page - 1) * limit;
 
     const {
         keyword,
@@ -504,21 +383,18 @@ const getDeletedJobs = asyncHandler(async (req, res) => {
         employmentType,
         experienceLevel,
         location,
-        status
+        status,
     } = req.query;
 
     const filter = {
         recruiterId,
-        isDeleted: true
+        isDeleted: false,
+        status: status || "OPEN",
     };
-
-    if (status) {
-        filter.status = status;
-    }
 
     if (keyword) {
         filter.$text = {
-            $search: keyword
+            $search: keyword,
         };
     }
 
@@ -541,16 +417,19 @@ const getDeletedJobs = asyncHandler(async (req, res) => {
     if (location) {
         filter["location.city"] = {
             $regex: location,
-            $options: "i"
+            $options: "i",
         };
     }
 
-    const jobs = await Job.find(filter)
-        .sort({ deletedAt: -1 })
-        .skip(skip)
-        .limit(limit);
+    const [jobs, totalJobs] = await Promise.all([
+        Job.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit),
 
-    const totalJobs = await Job.countDocuments(filter);
+        Job.countDocuments(filter),
+    ]);
+
     const totalPages = Math.ceil(totalJobs / limit);
 
     return res.status(200).json(
@@ -564,13 +443,153 @@ const getDeletedJobs = asyncHandler(async (req, res) => {
                     totalJobs,
                     totalPages,
                     hasNextPage: page < totalPages,
-                    hasPrevPage: page > 1
-                }
+                    hasPrevPage: page > 1,
+                },
+            },
+            "Recruiter Jobs Fetched Successfully"
+        )
+    );
+});
+
+const restoreJob = asyncHandler(async (req, res) => {
+    const { JobId } = req.params;
+    const recruiterId = req.user._id;
+
+    if (!JobId || !mongoose.isValidObjectId(JobId)) {
+        throw new ApiError(400, "Invalid Job ID");
+    }
+
+    if (!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
+        throw new ApiError(400, "Invalid Recruiter ID");
+    }
+
+    const job = await Job.findOneAndUpdate(
+        {
+            _id: JobId,
+            recruiterId,
+            isDeleted: true,
+        },
+        {
+            $set: {
+                isDeleted: false,
+                deletedAt: null,
+            },
+        },
+        {
+            new: true,
+        }
+    );
+
+    if (!job) {
+        throw new ApiError(
+            404,
+            "Deleted job not found or you are not authorized to restore it."
+        );
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            job,
+            "Job Restored Successfully"
+        )
+    );
+});
+
+const getDeletedJobs = asyncHandler(async (req, res) => {
+    const recruiterId = req.user._id;
+
+    if (!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
+        throw new ApiError(400, "Invalid Recruiter ID");
+    }
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+
+    if (page < 1 || limit < 1) {
+        throw new ApiError(400, "Invalid Page Or Limit");
+    }
+
+    const skip = (page - 1) * limit;
+
+    const {
+        keyword,
+        category,
+        workSpaceType,
+        employmentType,
+        experienceLevel,
+        location,
+        status,
+    } = req.query;
+
+    const filter = {
+        recruiterId,
+        isDeleted: true,
+    };
+
+    if (status) {
+        filter.status = status;
+    }
+
+    if (keyword) {
+        filter.$text = {
+            $search: keyword,
+        };
+    }
+
+    if (category) {
+        filter.category = category;
+    }
+
+    if (workSpaceType) {
+        filter.workSpaceType = workSpaceType;
+    }
+
+    if (employmentType) {
+        filter.employmentType = employmentType;
+    }
+
+    if (experienceLevel) {
+        filter.experienceLevel = experienceLevel;
+    }
+
+    if (location) {
+        filter["location.city"] = {
+            $regex: location,
+            $options: "i",
+        };
+    }
+
+    const [jobs, totalJobs] = await Promise.all([
+        Job.find(filter)
+            .sort({ deletedAt: -1 })
+            .skip(skip)
+            .limit(limit),
+
+        Job.countDocuments(filter),
+    ]);
+
+    const totalPages = Math.ceil(totalJobs / limit);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                jobs,
+                pagination: {
+                    page,
+                    limit,
+                    totalJobs,
+                    totalPages,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1,
+                },
             },
             "Deleted Jobs Fetched Successfully"
         )
     );
 });
+
 
 export {
     createJob,
@@ -579,5 +598,8 @@ export {
     deleteJob,
     getJobById,
     getAllJobs,
-    changeJobStatus
+    changeJobStatus,
+    getRecruiterJobs,
+    restoreJob,
+    getDeletedJobs
 }
