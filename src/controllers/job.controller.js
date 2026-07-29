@@ -450,11 +450,21 @@ const restoreJob = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid Job ID");
     }
 
-    const job = await Job.findOne({
-        _id: JobId,
-        recruiterId,
-        isDeleted: true,
-    });
+    const job = await Job.findOneAndUpdate(
+        {
+            _id: JobId,
+            recruiterId,
+            isDeleted: true,
+        },
+        {
+            $set: {
+                isDeleted: false,
+            },
+        },
+        {
+            new: true,
+        }
+    );
 
     if (!job) {
         throw new ApiError(
@@ -462,11 +472,6 @@ const restoreJob = asyncHandler(async (req, res) => {
             "Deleted job not found or you are not authorized to restore it."
         );
     }
-
-    job.isDeleted = false;
-    job.deletedAt = null;
-
-    await job.save();
 
     return res.status(200).json(
         new ApiResponse(
