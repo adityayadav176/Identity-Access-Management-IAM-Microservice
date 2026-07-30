@@ -67,6 +67,40 @@ const createCompany = asyncHandler(async (req, res) => {
     );
 });
 
+const getCompanyById = asyncHandler(async (req, res) => {
+    const { companyId } = req.params;
+    const recruiterId = req.user?._id;
+
+    if (!companyId || !mongoose.isValidObjectId(companyId)) {
+        throw new ApiError(400, "Invalid Company ID");
+    }
+
+    if (!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
+        throw new ApiError(401, "Unauthorized");
+    }
+
+    const company = await Company.findOne({
+        _id: companyId,
+        "recruiters.recruiterId": recruiterId,
+    });
+
+    if (!company) {
+        throw new ApiError(
+            404,
+            "Company not found or you are not authorized to access it."
+        );
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            company,
+            "Company fetched successfully."
+        )
+    );
+});
+
 export {
-    createCompany
+    createCompany,
+    getCompanyById
 }
