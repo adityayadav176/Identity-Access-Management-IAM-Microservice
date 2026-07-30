@@ -277,10 +277,50 @@ const deleteCompany = asyncHandler(async (req, res) => {
     );
 });
 
+const permanentDeleteCompany = asyncHandler(async (req, res) => {
+    const { companyId } = req.params;
+    const recruiterId = req.user._id;
+
+    if (!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    if (!companyId || !mongoose.isValidObjectId(companyId)) {
+        throw new ApiError(400, "Invalid Company ID");
+    }
+
+    const company = await Company.findOneAndDelete({
+        _id: companyId,
+        isDeleted: true,
+        recruiters: {
+            $elemMatch: {
+                recruiterId,
+                role: "OWNER",
+            },
+        },
+    });
+
+    if (!company) {
+        throw new ApiError(
+            404,
+            "Deleted company not found or you are not authorized to permanently delete it."
+        );
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            company,
+            "Company permanently deleted successfully."
+        )
+    );
+});
+
 export {
     createCompany,
     getCompanyById,
     getAllCompanies,
     updateCompany,
-    deleteCompany
+    deleteCompany,
+    permanentDeleteCompany
 }
