@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { mongo } from "mongoose";
 import { Company } from "../models/company.model.js";
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
@@ -226,9 +226,61 @@ const updateCompany = asyncHandler(async (req, res) => {
     )
 })
 
+const deleteCompany = asyncHandler(async (req, res) => {
+    const { companyId } = req.params;
+    const recruiterId = req.user._id;
+
+    if (!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    if (!companyId || !mongoose.isValidObjectId(companyId)) {
+        throw new ApiError(400, "Invalid Company ID");
+    }
+
+    const company = await Company.findOneAndUpdate(
+        {
+            _id: companyId,
+            isDeleted: false,
+            recruiters: {
+                $elemMatch: {
+                    recruiterId,
+                    role: { $in: ["OWNER", "ADMIN"] }
+                }
+            }
+        },
+        {
+            $set: {
+                isDeleted: true,
+                deletedAt: new Date(),
+            }
+        },
+        {
+            new: true,
+            runValidators: true
+        }
+    );
+
+    if (!company) {
+        throw new ApiError(
+            404,
+            "Company not found or you are not authorized to delete it."
+        );
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            company,
+            "Company deleted successfully."
+        )
+    );
+});
+
 export {
     createCompany,
     getCompanyById,
     getAllCompanies,
-    updateCompany
+    updateCompany,
+    deleteCompany
 }
