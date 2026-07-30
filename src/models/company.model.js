@@ -118,6 +118,11 @@ const companySchema = new Schema({
         default: null,
     },
 
+    isDeleted: {
+        type: Boolean,
+        default: false
+    }
+
 }, { timestamps: true })
 
 

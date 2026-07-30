@@ -100,7 +100,135 @@ const getCompanyById = asyncHandler(async (req, res) => {
     );
 });
 
+const getAllCompanies = asyncHandler(async (req, res) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+
+    if (page < 1 || limit < 1) {
+        throw new ApiError(400, "Invalid page or limit");
+    }
+
+    const skip = (page - 1) * limit;
+
+    const {
+        keyword,
+        industry,
+        companySize,
+        city,
+        verified,
+        sortBy = "createdAt",
+        order = "desc",
+    } = req.query;
+
+    const filter = {
+        isDeleted: false,
+    };
+
+    if (keyword) {
+        filter.$text = {
+            $search: keyword,
+        };
+    }
+
+    if (industry) {
+        filter.industry = industry;
+    }
+
+    if (companySize) {
+        filter.companySize = companySize;
+    }
+
+    if (city) {
+        filter["headquarters.city"] = {
+            $regex: city,
+            $options: "i",
+        };
+    }
+
+    if (verified !== undefined) {
+        filter.isVerified = verified === "true";
+    }
+
+    const sort = {
+        [sortBy]: order === "asc" ? 1 : -1,
+    };
+
+    const [companies, totalCompanies] = await Promise.all([
+        Company.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit),
+
+        Company.countDocuments(filter),
+    ]);
+
+    const totalPages = Math.ceil(totalCompanies / limit);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                companies,
+                pagination: {
+                    page,
+                    limit,
+                    totalCompanies,
+                    totalPages,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1,
+                },
+            },
+            "Companies fetched successfully."
+        )
+    );
+});
+
+const updateCompany = asyncHandler(async (req, res) => {
+    const { companyId } = req.params;
+
+    if(!companyId || !mongoose.isValidObjectId(companyId)) {
+        throw new ApiError(400, "Invalid CompanyId");
+    } 
+
+    const { name, description, industry, companySize, foundedYear, headquarters } = req.body;
+
+    const updateDate = {}
+
+    if(name !== undefined) updateDate.name = name;
+    if(description !== undefined) updateDate.description = description;
+    if(industry !== undefined) updateDate.industry = industry;
+    if(companySize !== undefined) updateDate.companySize = companySize;
+    if(foundedYear !== undefined) updateDate.foundedYear = foundedYear;
+    if(headquarters !== undefined) updateDate.headquarters = headquarters;
+
+    if(Object.keys(updateDate).length === 0) {
+        throw new ApiError(400, "No fields provided for update.");
+    }
+
+    const company = await Company.findByIdAndUpdate(
+        companyId,
+        {
+            $set: updateDate
+        },
+        {
+            new: true,
+            runValidators: true
+        }
+    )
+
+    if(!company) {
+        throw new ApiError(404, "Company Not Found Or Company Detail Not Updated");
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, company, "Company Detail Updated Successfully")
+    )
+})
+
 export {
     createCompany,
-    getCompanyById
+    getCompanyById,
+    getAllCompanies,
+    updateCompany
 }
