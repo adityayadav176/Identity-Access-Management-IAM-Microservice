@@ -316,11 +316,63 @@ const permanentDeleteCompany = asyncHandler(async (req, res) => {
     );
 });
 
+const restoreCompany = asyncHandler(async (req, res) => {
+    const { companyId } = req.params;
+    const recruiterId = req.user._id;
+
+    if (!recruiterId || !mongoose.isValidObjectId(recruiterId)) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    if (!companyId || !mongoose.isValidObjectId(companyId)) {
+        throw new ApiError(400, "Invalid Company ID");
+    }
+
+    const company = await Company.findOneAndUpdate(
+        {
+            _id: companyId,
+            isDeleted: true,
+            recruiters: {
+                $elemMatch: {
+                    recruiterId,
+                    role: { $in: ["OWNER", "ADMIN"] }
+                }
+            }
+        },
+        {
+            $set: {
+                isDeleted: false,
+                deletedAt: null,
+            }
+        },
+        {
+            new: true,
+            runValidators: true,
+        }
+    );
+
+    if (!company) {
+        throw new ApiError(
+            404,
+            "Deleted company not found or you are not authorized to restore it."
+        );
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            company,
+            "Company restored successfully."
+        )
+    );
+});
+
 export {
     createCompany,
     getCompanyById,
     getAllCompanies,
     updateCompany,
     deleteCompany,
-    permanentDeleteCompany
+    permanentDeleteCompany,
+    restoreCompany
 }
