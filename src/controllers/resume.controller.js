@@ -58,7 +58,48 @@ const uploadResume = asyncHandler(async (req, res) => {
     )
 })
 
+const getAllUserResumes = asyncHandler(async (req, res) => {
+    const user = req.user?._id;
+
+    if(!user) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    const page = Number(req.query.page);
+    const limit = Number(req.query.limit || 10);
+    const skip = (page - 1) * limit;
+
+    const Resumes = await Resume.find()
+    .populate("user", "name email")
+    .skip(skip)
+    .limit(limit)
+    .sort({createdAt: -1});
+
+    const totalResumes = await Resume.countDocuments();
+
+    if(!Resumes) {
+        throw new ApiError(404, "Resume Not Found");
+    }
+
+  return res.status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                pagination: {
+                    currentPage: page,
+                    totalPages: Math.ceil(totalResumes / limit),
+                    totalResumes,
+                    limit
+                },
+                Resumes
+            },
+            "Resumes Fetched Successfully"
+        )
+    );
+})
 
 export {
-    uploadResume
+    uploadResume,
+    getAllUserResumes
 }

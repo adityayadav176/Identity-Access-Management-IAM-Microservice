@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { verifyUser } from "../middleware/verifyUser.middleware.js";
-import { uploadResume } from "../controllers/resume.controller.js";
+import { getAllUserResumes, uploadResume } from "../controllers/resume.controller.js";
 import { upload } from "../middleware/multer.middleware.js";
 
 const router = Router();
@@ -11,4 +11,5 @@ router.post(
     upload.single("resume"), 
     uploadResume
 )
+router.get("/userResume",verifyUser, getAllUserResumes);
 export default router;
