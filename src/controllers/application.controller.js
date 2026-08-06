@@ -65,6 +65,61 @@ const applyForJob = asyncHandler(async (req, res) => {
     )
 })
 
+const getMyApplications = asyncHandler(async (req, res) => {
+    const user = req.user._id;
+
+    if(!user) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    const page = Number(req.query?.page || 1);
+    const limit = Number(req.query?.limit || 10);
+    const skip = (page - 1) * limit;
+
+    const applications = await Application.find({
+    candidateId: user,
+    isDeleted: false
+})
+.populate(
+    "jobId",
+    "title salary companyId"
+)
+.populate(
+    "resumeId"
+)
+.skip(skip)
+.limit(limit);
+
+    const totalApplications = await Application.countDocuments({
+        candidateId: user,
+        isDeleted: false
+    });
+
+    const totalPages = Math.ceil(totalApplications / limit);
+
+    if(applications.length === 0) {
+        throw new ApiError(404, "You Currently Don't Have Any Applications");
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(
+            200, 
+            {
+                applications,
+                pagination: {
+                    currentPage: page,
+                    limit,
+                    totalApplications,
+                    totalPages: Math.ceil(totalApplications / limit)
+                }
+            },
+            "Application Fetched successfully"
+        )
+    )
+})
+
 export {
-    applyForJob
+    applyForJob,
+    getMyApplications
 }

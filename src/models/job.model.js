@@ -13,6 +13,7 @@ const JobSchema = new Schema({
     },
     companyId: {
         type: Schema.Types.ObjectId,
+        ref: "Company",
         required: true,
     },
     recruiterId: {
