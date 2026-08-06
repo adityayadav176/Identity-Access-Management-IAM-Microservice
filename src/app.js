@@ -34,12 +34,14 @@ import { errorHandler } from "./middleware/error.middleware.js";
 import SessionRouter from "./routes/session.route.js"
 import JobRouter from "./routes/job.route.js"
 import CompanyRouter from "./routes/company.route.js"
+import ResumeRouter from "./routes/resume.routes.js"
 
 // route declartion
 app.use("/api/v1/auth", UserRouter);
 app.use("/api/v1/session", SessionRouter);
 app.use("/api/v1/job", JobRouter);
 app.use("/api/v1/company", CompanyRouter);
+app.use("/api/v1/resume", ResumeRouter);
 
 app.use(errorHandler);
 

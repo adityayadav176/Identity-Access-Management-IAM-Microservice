@@ -1,0 +1,64 @@
+import { asyncHandler } from "../utils/asyncHandler.js"
+import { ApiError } from "../utils/ApiError.js"
+import { ApiResponse } from "../utils/ApiResponse.js"
+import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js"
+import { Resume } from "../models/resume.model.js"
+
+const uploadResume = asyncHandler(async (req, res) => {
+    const resumeLocalFilePath = req.file?.path;
+
+    if (!resumeLocalFilePath) {
+        throw new ApiError(400, "Resume File Required");
+    }
+
+    if(req.file?.mimetype !== "application/pdf") {
+        throw new ApiError(400, "Only PDF files are required");
+    }
+
+    const user = req.user?._id;
+
+    if (!user) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    const { title } = req.body;
+
+    if (!title?.trim()) {
+        throw new ApiError(400, "Title Is Required");
+    }
+
+    const resume = await uploadOnCloudinary(resumeLocalFilePath);
+
+    if (!resume.secure_url || !resume.public_id) {
+        throw new ApiError(500, "Resume Uploading Failed..");
+    }
+
+    const count = await Resume.countDocuments({
+        user,
+        isDeleted: false
+    });
+
+    const CV = await Resume.create({
+        user,
+        title: title.trim(),
+        isDefault: count === 0,
+        resume: {
+            url: resume.secure_url,
+            public_id: resume.public_id,
+        },
+    });
+
+    if (!CV) {
+        await deleteFromCloudinary(resume.public_id);
+        throw new ApiError(500, "Somthing Went Wrong Uploading Resume");
+    }
+
+    return res.status(201).json(
+        new ApiResponse(201, CV, "Resume Uploaded Successfully")
+    )
+})
+
+
+export {
+    uploadResume
+}
