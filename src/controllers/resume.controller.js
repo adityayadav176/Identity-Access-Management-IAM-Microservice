@@ -305,13 +305,44 @@ const restoreResume = asyncHandler(async (req, res) => {
     )
 })
 
-// const permanentlyDeleteResume = asyncHandler(async (req, res) => {
+const permanentlyDeleteResume = asyncHandler(async (req, res) => {
+    const {resumeId} = req.params;
 
-// })
+    if(!resumeId || !mongoose.isValidObjectId(resumeId)) {
+        throw new ApiError(400, "Invalid ResumeID")
+    }
 
-// const downloadResume = asyncHandler(async (req, res) => {
+    const user = req.user._id;
 
-// })
+    if(!user) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    const resume = await Resume.findOne(
+        {
+            _id: resumeId,
+            user,
+            isDeleted: true
+        }
+    )
+
+    if(!resume) {
+        throw new ApiError(404, "Resume Not Found Or First Put Resume In RecycleBin");
+    }
+
+    await deleteFromCloudinary(resume.resume?.public_id);
+
+    await Resume.findByIdAndDelete(resumeId);
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, {}, "Resume Permanently Deleted Successfully")
+    )
+})
+
+const downloadResume = asyncHandler(async (req, res) => {
+
+})
 
 export {
     uploadResume,
@@ -321,5 +352,6 @@ export {
     replaceResumeFile,
     setIsDefault,
     deleteResume,
-    restoreResume
+    restoreResume,
+    permanentlyDeleteResume
 }

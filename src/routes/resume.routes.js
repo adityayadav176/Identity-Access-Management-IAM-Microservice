@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { verifyUser } from "../middleware/verifyUser.middleware.js";
-import { deleteResume, getAllUserResumes, getResumeById, replaceResumeFile, restoreResume, setIsDefault, updateResumeDetails, uploadResume } from "../controllers/resume.controller.js";
+import { deleteResume, getAllUserResumes, getResumeById, permanentlyDeleteResume, replaceResumeFile, restoreResume, setIsDefault, updateResumeDetails, uploadResume } from "../controllers/resume.controller.js";
 import { upload } from "../middleware/multer.middleware.js";
 
 const router = Router();
@@ -22,4 +22,5 @@ router.patch("/update/:resumeId",
 router.patch("/ChangeStatus/:resumeId", verifyUser, setIsDefault);
 router.patch("/delete/:resumeId", verifyUser, deleteResume);
 router.patch("/restore/:resumeId", verifyUser, restoreResume);
+router.delete("/delete/Recycle/:resumeId", verifyUser, permanentlyDeleteResume);
 export default router;
