@@ -265,6 +265,54 @@ const deleteResume = asyncHandler(async (req, res) => {
     )
 })
 
+const restoreResume = asyncHandler(async (req, res) => {
+    const {resumeId} = req.params;
+
+    if(!resumeId || !mongoose.isValidObjectId(resumeId)) {
+        throw new ApiError(400, "Invalid ResumeID");
+    }
+
+    const user = req.user._id;
+
+    if(!user) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    const resume = await Resume.findOneAndUpdate(
+        {
+            _id: resumeId,
+            user,
+            isDeleted: true
+        },
+        {
+            $set: {
+                isDeleted: false,
+                deletedAt: null
+            }
+        },
+        {
+            new: true
+        }
+    )
+
+    if(!resume) {
+        throw new ApiError(404, "Resume not found or already restored")
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, resume, "Resume Restore Successfully")
+    )
+})
+
+// const permanentlyDeleteResume = asyncHandler(async (req, res) => {
+
+// })
+
+// const downloadResume = asyncHandler(async (req, res) => {
+
+// })
+
 export {
     uploadResume,
     getAllUserResumes,
@@ -272,5 +320,6 @@ export {
     updateResumeDetails,
     replaceResumeFile,
     setIsDefault,
-    deleteResume
+    deleteResume,
+    restoreResume
 }
