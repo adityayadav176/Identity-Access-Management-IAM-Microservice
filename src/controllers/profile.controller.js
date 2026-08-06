@@ -67,6 +67,54 @@ const createProfile = asyncHandler(async (req, res) => {
     )
 })
 
+const updateProfile = asyncHandler(async (req, res) => {
+    const userId = req.user._id;
+
+    if(!userId) {
+        throw new ApiError(400, "Unauthorized Access Denied");
+    }
+
+    const profile = await UserProfile.findOne({userId});
+
+    if(!profile) {
+        throw new ApiError(404, "Profile Not Found");
+    }
+
+      const {
+        bio,
+        headline,
+        skills,
+        projects,
+        experience,
+        education,
+        socialLinks,
+        resumeId,
+        location,
+        preferences
+    } = req.body;
+
+    if (bio !== undefined) profile.bio = bio;
+    if (headline !== undefined) profile.headline = headline;
+    if (skills !== undefined) profile.skills = skills;
+    if (projects !== undefined) profile.projects = projects;
+    if (experience !== undefined) profile.experience = experience;
+    if (education !== undefined) profile.education = education;
+    if (socialLinks !== undefined) profile.socialLinks = socialLinks;
+    if (resumeId !== undefined) profile.resumeId = resumeId;
+    if (location !== undefined) profile.location = location;
+    if (preferences !== undefined) profile.preferences = preferences;
+
+    profile.profileCompletion = calculateProfileCompletion(profile);
+
+    await profile.save();
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, profile, "Profile Updated Successfully")
+    )
+})
+
 export {
-    createProfile
+    createProfile,
+    updateProfile
 }
