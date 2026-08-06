@@ -15,6 +15,7 @@ import QRCode from "qrcode";
 import JWT from "jsonwebtoken";
 import { UAParser } from "ua-parser-js";
 import { Session } from "../models/session.model.js";
+import { deleteFromCloudinary } from "../utils/cloudinary.js";
 
 const generateAccessAndRefreshToken = async (userId, sessionId) => {
     const user = await User.findById(userId);
