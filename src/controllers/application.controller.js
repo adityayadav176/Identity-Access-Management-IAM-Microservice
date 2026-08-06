@@ -119,7 +119,207 @@ const getMyApplications = asyncHandler(async (req, res) => {
     )
 })
 
+const getJobApplications = asyncHandler(async (req, res) => {
+    const recruiterId = req.user._id;
+    
+    if(!recruiterId) {
+        throw new ApiError(401,"Unauthorized Access Denied");
+    }
+
+    const { jobId } = req.params;
+
+    if(!jobId || !mongoose.isValidObjectId(jobId)) {
+        throw new ApiError(400,"Invalid Job Id");
+    }
+    
+    // Check Job
+    const job = await Job.findById(jobId);
+
+    if(!job) {
+        throw new ApiError(404,"Job Not Found");
+    }
+
+    // Check recruiter ownership
+    if(job.recruiterId.toString() !== recruiterId.toString()) {
+        throw new ApiError(403,"You are not allowed to view applicants");
+    }
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Optional status filter
+    const filter = {
+        jobId: jobId,
+        isDeleted: false
+    };
+
+    if(req.query.status) {
+        filter.status = req.query.status;
+    }
+
+    const applications = await Application.find(filter)
+        .populate(
+            "candidateId",
+            "name email profileImage"
+        )
+        .populate(
+            "resumeId",
+            "title resume version"
+        )
+        .sort({
+            createdAt: -1
+        })
+        .skip(skip)
+        .limit(limit);
+    const totalApplications = await Application.countDocuments(filter);
+
+    if(applications.length === 0) {
+        throw new ApiError(404,"No applications found");
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                applications,
+                pagination:{
+                    currentPage: page,
+                    limit,
+                    totalApplications,
+                    totalPages: Math.ceil(
+                        totalApplications / limit
+                    )
+                }
+            },
+            "Job applications fetched successfully"
+        )
+    );
+
+});
+
+const getApplicationById = asyncHandler(async (req, res) => {
+    const { applicationId } = req.params;
+
+    if (!applicationId || !mongoose.isValidObjectId(applicationId)) {
+        throw new ApiError(400, "Application ID is required");
+    }
+
+    const application = await Application.findById(applicationId)
+        .populate("jobId")
+        .populate("candidateId", "name email profileImage");
+
+    if (!application) {
+        throw new ApiError(404, "Application not found");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            application,
+            "Application fetched successfully"
+        )
+    );
+});
+
+const withdrawApplication = asyncHandler(async (req, res) => {
+    const { applicationId } = req.params;
+    const userId = req.user._id;
+
+    if (!applicationId) {
+        throw new ApiError(400, "Application ID is required");
+    }
+
+    const application = await Application.findById(applicationId);
+
+    if (!application) {
+        throw new ApiError(404, "Application not found");
+    }
+
+    // Check ownership
+    if (application.candidateId.toString() !== userId?.toString()) {
+        throw new ApiError(403, "You cannot withdraw this application");
+    }
+
+    if (application.status === "selected") {
+        throw new ApiError(
+            400,
+            "Selected application cannot be withdrawn"
+        );
+    }
+
+    application.status = "withdrawn";
+
+    await application.save();
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            application,
+            "Application withdrawn successfully"
+        )
+    );
+});
+
+const updateApplicationStatus = asyncHandler(async (req, res) => {
+    const { applicationId } = req.params;
+    const { status } = req.body;
+
+    if (!applicationId) {
+        throw new ApiError(400, "Application ID is required");
+    }
+
+    if (!status) {
+        throw new ApiError(400, "Status is required");
+    }
+
+    const allowedStatus = [
+        "screening",
+        "shortlisted",
+        "interview_scheduled",
+        "interview_completed",
+        "selected",
+        "rejected",
+        "withdrawn"
+    ];
+
+    if (!allowedStatus.includes(status)) {
+        throw new ApiError(400, "Invalid application status");
+    }
+
+    const application = await Application.findById(applicationId);
+
+    if (!application) {
+        throw new ApiError(404, "Application not found");
+    }
+
+    // Prevent updating withdrawn applications
+    if (application.status === "withdrawn") {
+        throw new ApiError(
+            400,
+            "Withdrawn application status cannot be changed"
+        );
+    }
+
+    application.status = status;
+
+    await application.save();
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            application,
+            "Application status updated successfully"
+        )
+    );
+});
+
 export {
     applyForJob,
-    getMyApplications
+    getMyApplications,
+    getJobApplications,
+    getApplicationById,
+    withdrawApplication,
+    updateApplicationStatus
 }
