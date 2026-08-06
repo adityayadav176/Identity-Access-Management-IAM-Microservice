@@ -315,11 +315,38 @@ const updateApplicationStatus = asyncHandler(async (req, res) => {
     );
 });
 
+const deleteApplication = asyncHandler(async (req, res) => {
+    const { applicationId } = req.params;
+
+    if (!applicationId || !mongoose.isValidObjectId(applicationId)) {
+        throw new ApiError(400, "Application ID is required");
+    }
+
+    const application = await Application.findById(applicationId);
+
+    if (!application) {
+        throw new ApiError(404, "Application not found");
+    }
+
+    application.isDeleted = true;
+    application.deletedAt = new Date();
+
+    await application.save();
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {},
+            "Application deleted successfully"
+        )
+    );
+});
 export {
     applyForJob,
     getMyApplications,
     getJobApplications,
     getApplicationById,
     withdrawApplication,
-    updateApplicationStatus
+    updateApplicationStatus,
+    deleteApplication
 }

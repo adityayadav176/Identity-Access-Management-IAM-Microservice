@@ -1,10 +1,15 @@
 import { Router } from "express";
-import { applyForJob, getApplicationById, getJobApplications, getMyApplications, updateApplicationStatus, withdrawApplication } from "../controllers/application.controller.js";
+import { applyForJob, deleteApplication, getApplicationById, getJobApplications, getMyApplications, updateApplicationStatus, withdrawApplication } from "../controllers/application.controller.js";
 import { verifyUser } from "../middleware/verifyUser.middleware.js";
 const router = Router();
 
 router.post("/:jobId",verifyUser, applyForJob);
 router.get("/", verifyUser, getMyApplications);
+router.delete(
+    "/:applicationId",
+    verifyUser,
+    deleteApplication
+);
 router.patch(
     "/:applicationId/status",
     verifyUser,
