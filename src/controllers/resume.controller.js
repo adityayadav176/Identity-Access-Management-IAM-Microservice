@@ -235,11 +235,42 @@ const setIsDefault = asyncHandler(async (req, res) => {
         new ApiResponse(200, resume, "Resume Is Now IS Default")
     )
 })
+
+const deleteResume = asyncHandler(async (req, res) => {
+    const {resumeId} = req.params;
+
+    if(!resumeId || !mongoose.isValidObjectId(resumeId)) {
+        throw new ApiError(400, "Invalid ResumeID");
+    }
+
+    const resume = await Resume.findByIdAndUpdate(
+        resumeId,
+        {
+            $set: {
+                isDeleted: true
+            }
+        },
+        {
+            new: true
+        }
+    )
+
+    if(!resume) {
+        throw new ApiError(404, "Resume Not Found Or  Updated");
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, resume, "Resume Deleted Successfully")
+    )
+})
+
 export {
     uploadResume,
     getAllUserResumes,
     getResumeById,
     updateResumeDetails,
     replaceResumeFile,
-    setIsDefault
+    setIsDefault,
+    deleteResume
 }
