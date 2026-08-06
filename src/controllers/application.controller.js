@@ -341,6 +341,38 @@ const deleteApplication = asyncHandler(async (req, res) => {
         )
     );
 });
+
+const updateRecruiterNotes = asyncHandler(async (req, res) => {
+    const { applicationId } = req.params;
+    const { recruiterNotes } = req.body;
+
+    if (!applicationId) {
+        throw new ApiError(400, "Application ID is required");
+    }
+
+    if (recruiterNotes === undefined) {
+        throw new ApiError(400, "Recruiter notes are required");
+    }
+
+    const application = await Application.findById(applicationId);
+
+    if (!application) {
+        throw new ApiError(404, "Application not found");
+    }
+
+    application.recruiterNotes = recruiterNotes;
+
+    await application.save();
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            application,
+            "Recruiter notes updated successfully"
+        )
+    );
+});
+
 export {
     applyForJob,
     getMyApplications,
@@ -348,5 +380,6 @@ export {
     getApplicationById,
     withdrawApplication,
     updateApplicationStatus,
-    deleteApplication
+    deleteApplication,
+    updateRecruiterNotes
 }

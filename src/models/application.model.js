@@ -30,7 +30,7 @@ const ApplicationSchema = new Schema({
         default: "applied",
         index: true
     },
-    recuiterNotes: {
+    recruiterNotes: {
         type: String,
         trim: true,
         default: "",
