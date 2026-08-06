@@ -373,6 +373,22 @@ const updateRecruiterNotes = asyncHandler(async (req, res) => {
     );
 });
 
+const getDeletedApplications = asyncHandler(async (req, res) => {
+    const deletedApplications = await Application.find({
+        isDeleted: true,
+    })
+        .populate("candidateId", "fullName email")
+        .populate("jobId", "title");
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            deletedApplications,
+            "Deleted applications fetched successfully"
+        )
+    );
+});
+
 export {
     applyForJob,
     getMyApplications,
@@ -381,5 +397,6 @@ export {
     withdrawApplication,
     updateApplicationStatus,
     deleteApplication,
-    updateRecruiterNotes
+    updateRecruiterNotes,
+    getDeletedApplications
 }
