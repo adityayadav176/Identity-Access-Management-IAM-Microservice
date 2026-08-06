@@ -38,128 +38,159 @@ const client = new OAuth2Client(
 )
 
 const registerUser = asyncHandler(async (req, res) => {
-    console.log("========== REGISTER USER ==========");
+    const session = await mongoose.startSession();
 
-    const { name, email, password, phoneNo } = req.body || {};
-    console.log("Request Body:", { name, email, phoneNo });
-
-    if ([name, email, password, phoneNo].some(field => !field?.toString().trim())) {
-        console.log("❌ Validation Failed: Missing Required Fields");
-        throw new ApiError(400, "All Filed Are Required");
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-    console.log("Normalized Email:", normalizedEmail);
-
-    const existedUser = await User.findOne({
-        $or: [{ phoneNo }, { email: normalizedEmail }]
-    });
-
-    console.log("Existing User:", existedUser);
-
-    if (existedUser) {
-        console.log("❌ User Already Exists");
-        throw new ApiError(400, "User Already Exists");
-    }
-
-    console.log("Files Received:", req.files);
-
-    const avatarLocalPath = req.files?.avatar?.[0]?.path;
-    const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
-
-    console.log("Avatar Path:", avatarLocalPath);
-    console.log("Cover Image Path:", coverImageLocalPath);
-
-    if (!avatarLocalPath) {
-        console.log("❌ Avatar Missing");
-        throw new ApiError(400, "Avatar File Required");
-    }
-
-    if (!coverImageLocalPath) {
-        console.log("❌ Cover Image Missing");
-        throw new ApiError(400, "CoverImage Required");
-    }
-
-    console.log("Uploading Avatar...");
-    const uploadAvatar = await uploadOnCloudinary(avatarLocalPath);
-    console.log("Avatar Upload Response:", uploadAvatar);
-
-    if (!uploadAvatar?.secure_url || !uploadAvatar?.public_id) {
-        console.log("❌ Avatar Upload Failed");
-        throw new ApiError(500, "Failed To Upload Avatar");
-    }
-
-    console.log("Uploading Cover Image...");
-    const uploadCoverImage = await uploadOnCloudinary(coverImageLocalPath);
-    console.log("Cover Upload Response:", uploadCoverImage);
-
-    if (!uploadCoverImage?.secure_url || !uploadCoverImage?.public_id) {
-        console.log("❌ Cover Image Upload Failed");
-        throw new ApiError(500, "Failed To Upload CoverImage");
-    }
-
-    console.log("Creating User...");
-
-    const user = await User.create({
-        name,
-        email: normalizedEmail,
-        phoneNo,
-        password,
-        avatar: {
-            url: uploadAvatar.secure_url,
-            public_id: uploadAvatar.public_id
-        },
-        coverImage: {
-            url: uploadCoverImage.secure_url,
-            public_id: uploadCoverImage.public_id
-        }
-    });
-
-    console.log("Created User:", user);
-
-    if (!user) {
-        console.log("❌ User Creation Failed");
-        throw new ApiError(500, "Something Went Wrong While Register User");
-    }
+    let avatarUpload = null;
+    let coverUpload = null;
 
     try {
-        console.log("Sending Welcome Email...");
+        session.startTransaction();
 
-        await transporter.sendMail({
-            from: process.env.SENDER_EMAIL,
-            to: normalizedEmail,
-            subject: `Welcome To Our Application ${PROJECT_NAME}`,
-            html: `
-                <h1>Hi ${name}</h1>
-                <h2>Your Account Is Successfully Created On ${PROJECT_NAME}</h2>
-            `
-        });
+        const { name, email, password, phoneNo } = req.body;
 
-        console.log("✅ Email Sent Successfully");
+        // ---------------- Validation ----------------
+
+        if (!name?.trim() || !email?.trim() || !password?.trim() || !phoneNo?.trim()) {
+            throw new ApiError(400, "All fields are required.");
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+
+        if (password.length < 8) {
+            throw new ApiError(
+                400,
+                "Password must be at least 8 characters."
+            );
+        }
+
+        // ---------------- Duplicate Check ----------------
+
+        const existedUser = await User.findOne({
+            $or: [
+                { email: normalizedEmail },
+                { phoneNo: phoneNo.trim() }
+            ]
+        }).session(session);
+
+        if (existedUser) {
+            throw new ApiError(409, "User already exists.");
+        }
+
+        // ---------------- Files ----------------
+
+        const avatarLocalPath = req.files?.avatar?.[0]?.path;
+        const coverLocalPath = req.files?.coverImage?.[0]?.path;
+
+        if (!avatarLocalPath) {
+            throw new ApiError(400, "Avatar is required.");
+        }
+
+        if (!coverLocalPath) {
+            throw new ApiError(400, "Cover image is required.");
+        }
+
+        // ---------------- Upload Images ----------------
+
+        [avatarUpload, coverUpload] = await Promise.all([
+            uploadOnCloudinary(avatarLocalPath),
+            uploadOnCloudinary(coverLocalPath)
+        ]);
+
+        if (!avatarUpload?.secure_url || !avatarUpload?.public_id) {
+            throw new ApiError(500, "Failed to upload avatar.");
+        }
+
+        if (!coverUpload?.secure_url || !coverUpload?.public_id) {
+            throw new ApiError(500, "Failed to upload cover image.");
+        }
+
+        // ---------------- Create User ----------------
+
+        const users = await User.create(
+            [
+                {
+                    name: name.trim(),
+                    email: normalizedEmail,
+                    password,
+                    phoneNo: phoneNo.trim(),
+
+                    avatar: {
+                        url: avatarUpload.secure_url,
+                        public_id: avatarUpload.public_id
+                    },
+
+                    coverImage: {
+                        url: coverUpload.secure_url,
+                        public_id: coverUpload.public_id
+                    }
+                }
+            ],
+            { session }
+        );
+
+        const user = users[0];
+
+        await session.commitTransaction();
+
+        // ---------------- Send Email ----------------
+
+        transporter
+            .sendMail({
+                from: process.env.SENDER_EMAIL,
+                to: normalizedEmail,
+                subject: `Welcome To ${PROJECT_NAME}`,
+                html: `
+                    <h2>Hello ${name}</h2>
+                    <p>Your account has been created successfully.</p>
+                    <p>Welcome to <b>${PROJECT_NAME}</b>.</p>
+                `
+            })
+            .catch((err) => {
+                console.error("Email Error:", err.message);
+            });
+
+        // ---------------- Fetch User ----------------
+
+        const createdUser = await User.findById(user._id)
+            .select("-password -refreshToken");
+
+        return res.status(201).json(
+            new ApiResponse(
+                201,
+                {
+                    user: createdUser
+                },
+                "User registered successfully."
+            )
+        );
+
     } catch (error) {
-        console.error("❌ Email Error:", error);
+
+        await session.abortTransaction();
+
+        // Rollback Cloudinary Uploads
+
+        if (avatarUpload?.public_id) {
+            try {
+                await deleteFromCloudinary(avatarUpload.public_id);
+            } catch (err) {
+                console.error("Avatar rollback failed:", err.message);
+            }
+        }
+
+        if (coverUpload?.public_id) {
+            try {
+                await deleteFromCloudinary(coverUpload.public_id);
+            } catch (err) {
+                console.error("Cover rollback failed:", err.message);
+            }
+        }
+
+        throw error;
+
+    } finally {
+        session.endSession();
     }
-
-    console.log("Fetching Created User...");
-
-    const createdUser = await User.findById(user._id).select("-password -refreshToken");
-
-    console.log("Created User Response:", createdUser);
-
-    if (!createdUser) {
-        console.log("❌ Created User Not Found");
-        throw new ApiError(404, "User Not Found!");
-    }
-
-    console.log("✅ Registration Successful");
-
-    return res.status(201).json(
-        new ApiResponse(
-            201,
-            { user: createdUser },
-            "Register User Successfully"
-        )
-    );
 });
 
 const loginUser = asyncHandler(async (req, res) => {
