@@ -30,7 +30,7 @@ router.patch(
     verifyUser,
     withdrawApplication
 );
-router.get("/getJobApplications/:jobId", verifyUser, getJobApplications);
+router.get("/jobs/:jobId", verifyUser, getJobApplications);
 
 
 export default router;
