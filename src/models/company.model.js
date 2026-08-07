@@ -132,10 +132,6 @@ companySchema.index({
 }),
 
     companySchema.index({
-        slug: 1
-    }),
-
-    companySchema.index({
         industry: 1,
     }),
 
