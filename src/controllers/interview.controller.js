@@ -113,7 +113,146 @@ const scheduleInterview = asyncHandler(async (req, res) => {
         )
 })
 
+const getInterviewById = asyncHandler(async (req, res) => {
+    const { interviewId } = req.params;
 
+    if (!interviewId || !mongoose.isValidObjectId(interviewId)) {
+        throw new ApiError(400, "Invalid InterviewID");
+    }
+
+    const interview = await Interview.findById(interviewId)
+        .populate("candidate", "fullName avatar email")
+        .populate("recruiter", "fullName avatar email")
+        .populate("application")
+        .populate("job", "title companyId");
+
+    if (!interview) {
+        throw new ApiError(404, "Interview Not found");
+    }
+
+    if (interview.candidate._id.toString() !== req.user._id.toString() && interview.recruiter_id.toString() !== req.user._id.toString()) {
+        throw new ApiError(403, "Unauthorized Access Denied");
+    }
+
+    return res.status(200)
+        .json(
+            new ApiResponse(200, interview, "Interview Fetched Successfully")
+        )
+})
+
+const getMyInterviews = asyncHandler(async (req, res) => {
+    const page = Number(req.query.page || 1);
+    const limit = Number(req.query.limit || 10);
+    const skip = (page - 1) * limit;
+
+    const filter = {
+        $or: [
+            { candidate: req.user._id },
+            { recruiter: req.user._id }
+        ]
+    }
+
+    const interviews = await Interview.find(filter)
+        .populate("candidate", "fullName avatar email")
+        .populate("recruiter", "fullName avatar email")
+        .populate("application")
+        .populate("job", "title companyId")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    if (!interviews) {
+        throw new ApiError(404, "Interview Not Found");
+    }
+
+    const totalInterview = await Interview.countDocuments(filter);
+
+    return res.status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    interviews,
+                    pagination: {
+                        totalInterview,
+                        currentPage: page,
+                        totalPage: Math.ceil(totalInterview / limit),
+                        limit
+                    }
+                },
+                "Interviews Fetched Successfully")
+        )
+})
+
+const rescheduleInterview = asyncHandler(async (req, res) => {
+    const {interviewId} = req.params;
+    const {scheduledAt} = req.body;
+
+    if(!interviewId) {
+        throw new ApiError(400, "Interview ID is required");
+    }
+
+    if(!scheduledAt) {
+        throw new ApiError(400, "New interview date & time is required");
+    }
+
+    const interview = await Interview.findById(interviewId);
+
+    if(!interview) {
+        throw new ApiError(404, "Interview Not Found");
+    }
+
+    if(interview.recruiter.toString() !== req.user._id.toString()) {
+        throw new ApiError(403, "Only recruiter can reschedule interview");
+    }
+
+    interview.scheduledAt = new Date(scheduledAt);
+    interview.status = "Rescheduled";
+
+    await interview.save()
+
+    return res.status(200).json(
+        new ApiResponse(200, interview, "Interview Rescheduled successfully")
+    )
+})
+
+const updateInterviewStatus = asyncHandler(async (req, res) => {
+    const {interviewId} = req.params;
+    const {status} = req.body;
+
+    const allowedStatus = [
+            "Scheduled",
+            "Accepted",
+            "Rejected",
+            "Completed",
+            "Cancelled",
+            "Reschedule Requested",
+            "Rescheduled",
+            "No Show"
+    ];
+
+    if(!allowedStatus.includes(status)) {
+        throw new ApiError(400, "Invalid interview status");
+    }
+
+    const interview = await interview.findById(interviewId);
+
+    if(!interview) {
+        throw new ApiError(404, "interview not found");
+    }
+
+    if(interview.recruiter.toString() !== req.user._id.toString()) {
+        throw new ApiError(403, "Only recruiter can update interview status");
+    }
+
+    interview.status = status;
+    await interview.save();
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, interview, "Interview status Updated Successfully")
+    )
+})
 
 export {
     scheduleInterview,
