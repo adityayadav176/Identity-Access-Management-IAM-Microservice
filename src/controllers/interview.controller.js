@@ -235,13 +235,13 @@ const updateInterviewStatus = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid interview status");
     }
 
-    const interview = await interview.findById(interviewId);
+    const interview = await Interview.findById(interviewId);
 
     if(!interview) {
         throw new ApiError(404, "interview not found");
     }
 
-    if(interview.recruiter.toString() !== req.user._id.toString()) {
+    if(interview.recruiter._id.toString() !== req.user._id.toString()) {
         throw new ApiError(403, "Only recruiter can update interview status");
     }
 
