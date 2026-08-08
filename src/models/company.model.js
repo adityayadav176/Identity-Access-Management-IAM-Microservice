@@ -31,13 +31,8 @@ const socialLinksSchema = new Schema({
 const recruiterSchema = new Schema({
     recruiterId: {
         type: Schema.Types.ObjectId,
+        ref: "User",
         required: true
-    },
-
-    role: {
-        type: String,
-        enum: ["OWNER", "ADMIN", "RECRUITER"],
-        default: "RECRUITER"
     },
 
     joinedAt: {
