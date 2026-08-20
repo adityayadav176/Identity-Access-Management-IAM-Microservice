@@ -207,7 +207,44 @@ const parmanentlyDeleteConversation = asyncHandler(async (req, res) => {
         )
 })
 
+const deleteConversation = asyncHandler(async (req, res) => {
+    const userId = req.user._id;
 
+    if (!userId) {
+        throw new ApiError(401, "Unauthorized Access Denied")
+    }
+
+    const { conversationId } = req.params;
+
+    if (!conversationId || !mongoose.isValidObjectId(conversationId)) {
+        throw new ApiError(400, "Invalid conversationId");
+    }
+
+    const conversation = await Conversation.findOneAndUpdate(
+        {
+            _id: conversationId,
+            participants: userId,
+            isDeleted: false
+        },
+        {
+            $set: {
+                isDeleted: true
+            }
+        },
+        {
+            new: true
+        }
+    );
+
+    if (!conversation) {
+        throw new ApiError(404, "Conversation not found or deleted ")
+    }
+
+    return res.status(200)
+        .json(
+            new ApiResponse(200, "Conversation moved to recycle bin sussessfully")
+        )
+})
 
 const restoreConversation = asyncHandler(async (req, res) => {
     const userId = req.user._id;
