@@ -124,7 +124,7 @@ const createOrGetConversation = asyncHandler(async (req, res) => {
     }
 });
 
-const getMyConversation = asyncHandler(async (req, res) => {
+const getMyConversations = asyncHandler(async (req, res) => {
     const userId = req.user?._id;
 
     if (!userId) {
@@ -178,7 +178,7 @@ const getConversationById = asyncHandler(async (req, res) => {
     )
 })
 
-const parmanentlyDeleteConversation = asyncHandler(async (req, res) => {
+const permanentlyDeleteConversation = asyncHandler(async (req, res) => {
     const userId = req.user._id;
 
     if (!userId) {
@@ -287,9 +287,9 @@ const restoreConversation = asyncHandler(async (req, res) => {
 
 export {
     createOrGetConversation,
-    getMyConversation,
+    getMyConversations,
     getConversationById,
-    parmanentlyDeleteConversation,
+    permanentlyDeleteConversation,
     deleteConversation,
     restoreConversation
 };
