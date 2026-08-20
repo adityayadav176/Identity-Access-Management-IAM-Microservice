@@ -290,5 +290,6 @@ export {
     getMyConversation,
     getConversationById,
     parmanentlyDeleteConversation,
-    deleteConversation
+    deleteConversation,
+    restoreConversation
 };
