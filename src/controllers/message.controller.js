@@ -268,7 +268,62 @@ const markMessageAsRead = asyncHandler(async (req, res) => {
 });
 
 
+const markMessageAsDelivered = asyncHandler(async (req, res) => {
+    const { messageId } = req.params;
+    const userId = req.user?._id;
 
+    if (!userId) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    if (!messageId || !mongoose.isValidObjectId(messageId)) {
+        throw new ApiError(400, "Invalid message id");
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+        throw new ApiError(404, "Message not found");
+    }
+
+    const conversation = await Conversation.findById(message.conversation);
+
+    if (!conversation) {
+        throw new ApiError(404, "Conversation not found");
+    }
+
+    const isParticipant = conversation.participants.some(
+        participant => participant.toString() === userId.toString()
+    );
+
+    if (!isParticipant) {
+        throw new ApiError(
+            403,
+            "You are not a participant of this conversation"
+        );
+    }
+
+    const alreadyDelivered = message.deliveredTo?.some(
+        item => item.user.toString() === userId.toString()
+    );
+
+    if (!alreadyDelivered) {
+        message.deliveredTo.push({
+            user: userId,
+            deliveredAt: new Date()
+        });
+
+        await message.save();
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            message,
+            "Message marked as delivered successfully"
+        )
+    );
+});
 
 export {
     markMessageAsRead,
