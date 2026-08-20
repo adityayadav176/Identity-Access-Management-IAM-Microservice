@@ -180,6 +180,45 @@ const getConversationById = asyncHandler(async (req, res) => {
 
 
 
+const restoreConversation = asyncHandler(async (req, res) => {
+    const userId = req.user._id;
+
+    if (!userId) {
+        throw new ApiError(401, "Unauthorized Access denied");
+    }
+
+    const { conversationId } = req.params;
+
+    if (!conversationId || !mongoose.isValidObjectId(conversationId)) {
+        throw new ApiError(400, "Invalid conversationId")
+    }
+
+    const conversation = await Conversation.findOneAndUpdate(
+        {
+            _id: conversationId,
+            participants: userId,
+            isDeleted: true
+        },
+        {
+            $set: {
+                isDeleted: false,
+            }
+        },
+        {
+            new: true
+        }
+    );
+
+    if(!conversation) {
+        throw new ApiError(404, "Conversation not found or restored")
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, conversation, "Conversation restored successfully")
+    )
+})
+
 export {
     createOrGetConversation,
     getMyConversation,
