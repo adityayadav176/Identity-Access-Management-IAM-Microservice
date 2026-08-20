@@ -182,6 +182,34 @@ const editMessage = asyncHandler(async (req, res) => {
         )
 })
 
+const deleteMessage = asyncHandler(async (req, res) => {
+    const {messageId} = req.params;
+
+    if(!messageId || !mongoose.isValidObjectId(messageId)) {
+        throw new ApiError(400, "Invalid message id")
+    } 
+
+    const userId = req.user._id;
+
+    if(!userId) {
+        throw new ApiError(401, "Unauthorized Access Denied");
+    }
+
+    const message = await Message.findOneAndDelete({
+        _id: messageId,
+        sender: userId
+    });
+
+    if(!message) {
+        throw new ApiError(404, "Message not found Or deleted");
+    }
+
+    return res.status(200)
+    .json(
+        new ApiResponse(200, {}, "Message deleted Successfully")
+    )
+})
+
 
 
 export {
