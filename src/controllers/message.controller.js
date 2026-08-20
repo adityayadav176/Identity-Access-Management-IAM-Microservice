@@ -134,6 +134,54 @@ const getMessages = asyncHandler(async (req, res) => {
     );
 });
 
+const editMessage = asyncHandler(async (req, res) => {
+    const { messageId } = req.params;
+
+    const {content} = req.body;
+
+    if (!messageId || !mongoose.isValidObjectId(messageId)) {
+        throw new ApiError(400, "Invalid messageId");
+    }
+
+    if(typeof content !== "string" || !content.trim()) {
+        throw new ApiError(400, "Message content is required");
+    }
+
+    const userId = req.user._id;
+
+    if (!userId) {
+        throw new ApiError(401, "Unauthorized access denied");
+    }
+
+    const message = await Message.findOneAndUpdate(
+        {
+            _id: messageId,
+            sender: userId,
+            isDeleted: false
+        },
+        {
+            $set: {
+                isEdited: true,
+                content: content.trim(),
+                editedAt: new Date
+            }
+        },
+        {
+            new: true,
+            runValidators: true
+        }
+    ).populate("sender", "name email avatar");
+
+    if (!message) {
+        throw new ApiError(404, "Message not found");
+    }
+
+    return res.status(200)
+        .json(
+            new ApiResponse(200, message, "message edited successfully")
+        )
+})
+
 
 
 export {
