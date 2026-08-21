@@ -40,6 +40,7 @@ import ApplicatiobRouter from "./routes/application.route.js"
 import InterviewRouter from "./routes/interview.route.js"
 import AdminRouter from "./routes/admin.route.js"
 import ConversationRouter from "./routes/conversation.route.js"
+import MessageRouter from "./routes/message.route.js"
 
 // route declartion
 app.use("/api/v1/auth", UserRouter);
@@ -52,6 +53,7 @@ app.use("/api/v1/application", ApplicatiobRouter);
 app.use("/api/v1/interview", InterviewRouter);
 app.use("/api/v1/admin", AdminRouter);
 app.use("/api/v1/conversation", ConversationRouter);
+app.use("/api/v1/messages", MessageRouter);
 
 app.use(errorHandler);
 
