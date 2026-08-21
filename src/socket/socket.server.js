@@ -76,7 +76,96 @@ export const initializeSocket = (io) => {
         // ==========================================
         // SEND MESSAGE
         // ==========================================
-       
+        socket.on("send_message", async (data) => {
+            try {
+                const {
+                    conversationId,
+                    content,
+                    messageType = "text",
+                } = data;
+
+                // Validate data
+                if (!conversationId || !content) {
+                    return socket.emit("message_error", {
+                        success: false,
+                        message:
+                            "conversationId and content are required",
+                    });
+                }
+
+                // Find conversation
+                const conversation = await Conversation.findById(
+                    conversationId
+                );
+
+                if (!conversation) {
+                    return socket.emit("message_error", {
+                        success: false,
+                        message: "Conversation not found",
+                    });
+                }
+
+                // Check participant
+                const isParticipant = conversation.participants.some(
+                    (participantId) =>
+                        participantId.toString() ===
+                        socket.user._id.toString()
+                );
+
+                if (!isParticipant) {
+                    return socket.emit("message_error", {
+                        success: false,
+                        message:
+                            "You are not a participant of this conversation",
+                    });
+                }
+
+                // Create message
+                const message = await Message.create({
+                    conversation: conversationId,
+                    sender: socket.user._id,
+                    content,
+                    messageType,
+                });
+
+                // Update conversation
+                conversation.lastMessage = message._id;
+                conversation.lastMessageAt = new Date();
+
+                await conversation.save();
+
+                // Populate sender
+                const populatedMessage = await Message.findById(
+                    message._id
+                ).populate(
+                    "sender",
+                    "name username profileImage"
+                );
+
+                // Emit message to conversation room
+                io.to(conversationId.toString()).emit(
+                    "new_message",
+                    {
+                        success: true,
+                        message: populatedMessage,
+                    }
+                );
+
+                console.log(
+                    `Message sent by ${socket.user._id} in conversation ${conversationId}`
+                );
+            } catch (error) {
+                console.error(
+                    "Send message error:",
+                    error.message
+                );
+
+                socket.emit("message_error", {
+                    success: false,
+                    message: "Failed to send message",
+                });
+            }
+        });
 
         // ==========================================
         // DISCONNECT
