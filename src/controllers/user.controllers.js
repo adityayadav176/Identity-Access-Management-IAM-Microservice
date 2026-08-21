@@ -16,6 +16,7 @@ import JWT from "jsonwebtoken";
 import { UAParser } from "ua-parser-js";
 import { Session } from "../models/session.model.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.js";
+import mongoose from "mongoose";
 
 const generateAccessAndRefreshToken = async (userId, sessionId) => {
     const user = await User.findById(userId);
@@ -39,23 +40,38 @@ const client = new OAuth2Client(
 )
 
 const registerUser = asyncHandler(async (req, res) => {
-    const session = await mongoose.startSession();
-
     let avatarUpload = null;
     let coverUpload = null;
 
     try {
-        session.startTransaction();
+        const {
+            name,
+            email,
+            password,
+            phoneNo
+        } = req.body;
 
-        const { name, email, password, phoneNo } = req.body;
+        // ==============================
+        // VALIDATION
+        // ==============================
 
-        // ---------------- Validation ----------------
-
-        if (!name?.trim() || !email?.trim() || !password?.trim() || !phoneNo?.trim()) {
-            throw new ApiError(400, "All fields are required.");
+        if (
+            !name?.trim() ||
+            !email?.trim() ||
+            !password?.trim() ||
+            !phoneNo?.trim()
+        ) {
+            throw new ApiError(
+                400,
+                "All fields are required."
+            );
         }
 
-        const normalizedEmail = email.trim().toLowerCase();
+        const normalizedEmail =
+            email.trim().toLowerCase();
+
+        const normalizedPhone =
+            phoneNo.trim();
 
         if (password.length < 8) {
             throw new ApiError(
@@ -64,133 +80,219 @@ const registerUser = asyncHandler(async (req, res) => {
             );
         }
 
-        // ---------------- Duplicate Check ----------------
+        // ==============================
+        // CHECK EXISTING USER
+        // ==============================
 
         const existedUser = await User.findOne({
             $or: [
-                { email: normalizedEmail },
-                { phoneNo: phoneNo.trim() }
+                {
+                    email: normalizedEmail
+                },
+                {
+                    phoneNo: normalizedPhone
+                }
             ]
-        }).session(session);
+        });
 
         if (existedUser) {
-            throw new ApiError(409, "User already exists.");
+            throw new ApiError(
+                409,
+                "User already exists."
+            );
         }
 
-        // ---------------- Files ----------------
+        // ==============================
+        // GET FILES
+        // ==============================
 
-        const avatarLocalPath = req.files?.avatar?.[0]?.path;
-        const coverLocalPath = req.files?.coverImage?.[0]?.path;
+        const avatarLocalPath =
+            req.files?.avatar?.[0]?.path;
+
+        const coverLocalPath =
+            req.files?.coverImage?.[0]?.path;
 
         if (!avatarLocalPath) {
-            throw new ApiError(400, "Avatar is required.");
+            throw new ApiError(
+                400,
+                "Avatar is required."
+            );
         }
 
         if (!coverLocalPath) {
-            throw new ApiError(400, "Cover image is required.");
+            throw new ApiError(
+                400,
+                "Cover image is required."
+            );
         }
 
-        // ---------------- Upload Images ----------------
+        // ==============================
+        // UPLOAD TO CLOUDINARY
+        // ==============================
 
-        [avatarUpload, coverUpload] = await Promise.all([
-            uploadOnCloudinary(avatarLocalPath),
-            uploadOnCloudinary(coverLocalPath)
-        ]);
+        [avatarUpload, coverUpload] =
+            await Promise.all([
+                uploadOnCloudinary(
+                    avatarLocalPath
+                ),
 
-        if (!avatarUpload?.secure_url || !avatarUpload?.public_id) {
-            throw new ApiError(500, "Failed to upload avatar.");
+                uploadOnCloudinary(
+                    coverLocalPath
+                )
+            ]);
+
+        if (
+            !avatarUpload?.secure_url ||
+            !avatarUpload?.public_id
+        ) {
+            throw new ApiError(
+                500,
+                "Failed to upload avatar."
+            );
         }
 
-        if (!coverUpload?.secure_url || !coverUpload?.public_id) {
-            throw new ApiError(500, "Failed to upload cover image.");
+        if (
+            !coverUpload?.secure_url ||
+            !coverUpload?.public_id
+        ) {
+            throw new ApiError(
+                500,
+                "Failed to upload cover image."
+            );
         }
 
-        // ---------------- Create User ----------------
+        // ==============================
+        // CREATE USER
+        // ==============================
 
-        const users = await User.create(
-            [
-                {
-                    name: name.trim(),
-                    email: normalizedEmail,
-                    password,
-                    phoneNo: phoneNo.trim(),
+        const user = await User.create({
+            name: name.trim(),
 
-                    avatar: {
-                        url: avatarUpload.secure_url,
-                        public_id: avatarUpload.public_id
-                    },
+            email: normalizedEmail,
 
-                    coverImage: {
-                        url: coverUpload.secure_url,
-                        public_id: coverUpload.public_id
-                    }
-                }
-            ],
-            { session }
-        );
+            password,
 
-        const user = users[0];
+            phoneNo: normalizedPhone,
 
-        await session.commitTransaction();
+            avatar: {
+                url: avatarUpload.secure_url,
 
-        // ---------------- Send Email ----------------
+                public_id: avatarUpload.public_id
+            },
+
+            coverImage: {
+                url: coverUpload.secure_url,
+
+                public_id: coverUpload.public_id
+            }
+        });
+
+        // ==============================
+        // SEND WELCOME EMAIL
+        // ==============================
 
         transporter
             .sendMail({
-                from: process.env.SENDER_EMAIL,
+                from:
+                    process.env.SENDER_EMAIL,
+
                 to: normalizedEmail,
-                subject: `Welcome To ${PROJECT_NAME}`,
+
+                subject:
+                    `Welcome To ${PROJECT_NAME}`,
+
                 html: `
-                    <h2>Hello ${name}</h2>
-                    <p>Your account has been created successfully.</p>
-                    <p>Welcome to <b>${PROJECT_NAME}</b>.</p>
+                    <div
+                        style="
+                            font-family: Arial, sans-serif;
+                        "
+                    >
+
+                        <h2>
+                            Hello ${name}
+                        </h2>
+
+                        <p>
+                            Your account has been
+                            created successfully.
+                        </p>
+
+                        <p>
+                            Welcome to
+                            <b>
+                                ${PROJECT_NAME}
+                            </b>.
+                        </p>
+
+                    </div>
                 `
             })
-            .catch((err) => {
-                console.error("Email Error:", err.message);
+            .catch((error) => {
+                console.error(
+                    "Email Error:",
+                    error.message
+                );
             });
 
-        // ---------------- Fetch User ----------------
+        // ==============================
+        // FETCH SAFE USER
+        // ==============================
 
-        const createdUser = await User.findById(user._id)
-            .select("-password -refreshToken");
+        const createdUser =
+            await User.findById(user._id)
+                .select(
+                    "-password -refreshToken"
+                );
 
-        return res.status(201).json(
-            new ApiResponse(
-                201,
-                {
-                    user: createdUser
-                },
-                "User registered successfully."
-            )
-        );
+        // ==============================
+        // RESPONSE
+        // ==============================
+
+        return res
+            .status(201)
+            .json(
+                new ApiResponse(
+                    201,
+                    {
+                        user: createdUser
+                    },
+                    "User registered successfully."
+                )
+            );
 
     } catch (error) {
 
-        await session.abortTransaction();
-
-        // Rollback Cloudinary Uploads
+        // ==============================
+        // CLOUDINARY ROLLBACK
+        // ==============================
 
         if (avatarUpload?.public_id) {
             try {
-                await deleteFromCloudinary(avatarUpload.public_id);
-            } catch (err) {
-                console.error("Avatar rollback failed:", err.message);
+                await deleteFromCloudinary(
+                    avatarUpload.public_id
+                );
+            } catch (rollbackError) {
+                console.error(
+                    "Avatar rollback failed:",
+                    rollbackError.message
+                );
             }
         }
 
         if (coverUpload?.public_id) {
             try {
-                await deleteFromCloudinary(coverUpload.public_id);
-            } catch (err) {
-                console.error("Cover rollback failed:", err.message);
+                await deleteFromCloudinary(
+                    coverUpload.public_id
+                );
+            } catch (rollbackError) {
+                console.error(
+                    "Cover rollback failed:",
+                    rollbackError.message
+                );
             }
         }
 
         throw error;
-
-    } finally {
-        session.endSession();
     }
 });
 

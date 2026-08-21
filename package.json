@@ -28,6 +28,7 @@
     "nodemon": "^3.1.14",
     "qrcode": "^1.5.4",
     "slugify": "^1.6.9",
+    "socket.io": "^4.8.3",
     "speakeasy": "^2.0.0",
     "ua-parser-js": "^2.0.10"
   }
